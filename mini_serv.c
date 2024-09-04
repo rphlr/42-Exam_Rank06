@@ -44,7 +44,7 @@ int     main(int ac, char **av)
         err("Wrong number of arguments");
 
     int                 sockfd;
-    socklen_t           len;
+    socklen_t           len = sizeof(struct sockaddr_in);
 	struct sockaddr_in  servaddr; 
 
 	// socket create and verification 
