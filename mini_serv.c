@@ -18,6 +18,7 @@ int			gid = 0,		maxfd = 0,		sockfd;
 fd_set		wrt_set,		rd_set,			curr_set;
 char		sd_bfr[300000],	rcv_bfr[300000];
 
+// Error handling function
 void	err(char *msg)
 {
 	if (msg)
@@ -28,6 +29,7 @@ void	err(char *msg)
 	exit(1);
 }
 
+// Broadcast message to all clients except the given one
 void send_to_all(int except) {
   wrt_set = curr_set;
   if (select(maxfd + 1, &rd_set, &wrt_set, 0, 0) == -1)
@@ -87,7 +89,7 @@ int		main(int ac, char **av)
 			{
 				if (fd == sockfd)
 				{
-					// Connection
+					// New client connection
 					int connfd = accept(sockfd, (struct sockaddr *)&servaddr, &len);
 					if (connfd == -1) continue;
 					if (connfd > maxfd) maxfd = connfd;
@@ -98,11 +100,11 @@ int		main(int ac, char **av)
 				}
 				else
 				{
-					// Message or deconnection
+					// Message or disconnection from client
 					int ret = recv(fd, &rcv_bfr, sizeof(rcv_bfr), 0);
 					if (ret <= 0)
 					{
-						// Deconnection
+						// Client disconnected
 						sprintf(sd_bfr, "server: client %d just left\n", clients[fd].id);
 						send_to_all(fd);
 						FD_CLR(fd, &curr_set);
@@ -111,7 +113,7 @@ int		main(int ac, char **av)
 					}
 					else
 					{
-						// Message
+						// Handle client message
 						for (int i = 0, j = strlen(clients[fd].msg); i < ret; i++, j++)
 						{
 							clients[fd].msg[j] = rcv_bfr[i];
@@ -124,9 +126,9 @@ int		main(int ac, char **av)
 								j = -1;
 							}
 						}
-						break;
 					}
 				}
+				break;
 			}
 		}
 	}
