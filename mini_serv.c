@@ -56,14 +56,21 @@ int		main(int ac, char **av)
 
 	// socket create and verification
 	sockfd = socket(AF_INET, SOCK_STREAM, 0);
-	if (sockfd == -1)
-		err(NULL);
+	if (sockfd == -1) err(NULL);
 	maxfd = sockfd;
 
 	FD_ZERO(&curr_set);
 	FD_SET(sockfd, &curr_set);
 	bzero(clients, sizeof(clients));
 	bzero(&servaddr, sizeof(servaddr));
+
+	FD_ZERO(&curr_set);
+	FD_ZERO(&wrt_set);
+	FD_SET(sockfd, &curr_set);
+	bzero(clients, sizeof(clients));
+	bzero(&servaddr, sizeof(servaddr));
+	bzero(rcv_bfr, sizeof(rcv_bfr));
+	bzero(sd_bfr, sizeof(sd_bfr));
 
 	// assign IP, PORT
 	servaddr.sin_family = AF_INET;
