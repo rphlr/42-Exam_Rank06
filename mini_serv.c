@@ -4,19 +4,19 @@
 #include <netdb.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 typedef struct s_client
 {
 	int		id;
 	char	msg[300000];
-} t_client;
+}	t_client;
 
-t_client	clients[1024];
-int			maxfd = 0,		gid = 0;
+t_client	clients[5000];
+int			gid = 0,		maxfd = 0,		sockfd;
+fd_set		wrt_set,		rd_set,			curr_set;
 char		sd_bfr[300000],	rcv_bfr[300000];
-fd_set		rd_set,			wrt_set,			curr_set;
 
 void	err(char *msg)
 {
@@ -25,30 +25,37 @@ void	err(char *msg)
 	else
 		write(2, "Fatal error", 11);
 	write(2, "\n", 1);
-	exit (1);
+	exit(1);
 }
 
-void	send_to_all(int except)
-{
-	for (int fd = 0; fd <= maxfd; fd++)
-	{
-		if (FD_ISSET(fd, &wrt_set) && fd != except)
-			if (send(fd, sd_bfr, strlen(sd_bfr), 0) == -1)
-				err(NULL);
-	}
+void send_to_all(int except) {
+  wrt_set = curr_set;
+  if (select(maxfd + 1, &rd_set, &wrt_set, 0, 0) == -1)
+  {
+  	FD_ZERO(&wrt_set);
+  	bzero(sd_bfr, sizeof(sd_bfr));
+  	return;
+  }
+  for (int fd=0; fd <= maxfd; fd ++)
+  {
+  	if (fd != except && FD_ISSET(fd, &wrt_set) && fd != sockfd)
+  		if (send(fd, sd_bfr, strlen(sd_bfr), 0) == -1)
+  			err(NULL);
+  }
+  FD_ZERO(&wrt_set);
+  bzero(sd_bfr, sizeof(sd_bfr));
 }
 
 int		main(int ac, char **av)
 {
 	if (ac != 2)
 		err("Wrong number of arguments");
-	
-	int					sockfd;
-	socklen_t			len = sizeof(struct sockaddr_in);
-	struct sockaddr_in	servaddr; 
 
-	// socket create and verification 
-	sockfd = socket(AF_INET, SOCK_STREAM, 0); 
+	socklen_t			len = sizeof(struct sockaddr_in);
+	struct sockaddr_in	servaddr;
+
+	// socket create and verification
+	sockfd = socket(AF_INET, SOCK_STREAM, 0);
 	if (sockfd == -1)
 		err(NULL);
 	maxfd = sockfd;
@@ -58,12 +65,12 @@ int		main(int ac, char **av)
 	bzero(clients, sizeof(clients));
 	bzero(&servaddr, sizeof(servaddr));
 
-	// assign IP, PORT 
-	servaddr.sin_family = AF_INET; 
-	servaddr.sin_addr.s_addr = htonl(2130706433); //127.0.0.1
-	servaddr.sin_port = htons(atoi(av[1])); 
-  
-	// Binding newly created socket to given IP and verification 
+	// assign IP, PORT
+	servaddr.sin_family = AF_INET;
+	servaddr.sin_addr.s_addr = htonl(2130706433); // 127.0.0.1
+	servaddr.sin_port = htons(atoi(av[1]));
+
+	// Binding newly created socket to given IP and verification
 	if ((bind(sockfd, (const struct sockaddr *)&servaddr, sizeof(servaddr))) == -1 || listen(sockfd, 100) == -1)
 		err(NULL);
 
@@ -89,11 +96,11 @@ int		main(int ac, char **av)
 				}
 				else
 				{
-					// Disconnection or message
+					// Message or deconnection
 					int ret = recv(fd, &rcv_bfr, sizeof(rcv_bfr), 0);
 					if (ret <= 0)
 					{
-						// Disconnection
+						// Deconnection
 						sprintf(sd_bfr, "server: client %d just left\n", clients[fd].id);
 						send_to_all(fd);
 						FD_CLR(fd, &curr_set);
@@ -115,9 +122,9 @@ int		main(int ac, char **av)
 								j = -1;
 							}
 						}
+						break;
 					}
 				}
-				break;
 			}
 		}
 	}
