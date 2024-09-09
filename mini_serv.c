@@ -60,11 +60,6 @@ int		main(int ac, char **av)
 	maxfd = sockfd;
 
 	FD_ZERO(&curr_set);
-	FD_SET(sockfd, &curr_set);
-	bzero(clients, sizeof(clients));
-	bzero(&servaddr, sizeof(servaddr));
-
-	FD_ZERO(&curr_set);
 	FD_ZERO(&wrt_set);
 	FD_SET(sockfd, &curr_set);
 	bzero(clients, sizeof(clients));
