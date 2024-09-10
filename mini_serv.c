@@ -30,22 +30,20 @@ void	err(char *msg)
 }
 
 // Broadcast message to all clients except the given one
-void send_to_all(int except) {
-  wrt_set = curr_set;
-  if (select(maxfd + 1, &rd_set, &wrt_set, 0, 0) == -1)
-  {
-  	FD_ZERO(&wrt_set);
-  	bzero(sd_bfr, sizeof(sd_bfr));
-  	return;
-  }
-  for (int fd=0; fd <= maxfd; fd ++)
-  {
-  	if (fd != except && FD_ISSET(fd, &wrt_set) && fd != sockfd)
-  		if (send(fd, sd_bfr, strlen(sd_bfr), 0) == -1)
-  			err(NULL);
-  }
-  FD_ZERO(&wrt_set);
-  bzero(sd_bfr, sizeof(sd_bfr));
+void	send_to_all(int except)
+{
+	wrt_set = curr_set;
+	if (select(maxfd + 1, &rd_set, &wrt_set, 0, 0))
+	{
+		for (int fd = 0; fd <= maxfd; fd++)
+		{
+			if (FD_ISSET(fd, &wrt_set) && fd != except)
+				if (send(fd, sd_bfr, strlen(sd_bfr), 0) == -1)
+					err(NULL);
+		}
+	}
+	FD_ZERO(&wrt_set);
+	bzero(sd_bfr, sizeof(sd_bfr));
 }
 
 int		main(int ac, char **av)
