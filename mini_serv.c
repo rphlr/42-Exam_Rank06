@@ -6,9 +6,9 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
-char	buf[1024],	msg[1024];
-int		id[1024],	max_fd,		server_fd,	client_fd,	new_fd,	readc,	next_id = 0;
-fd_set	all_fds,	read_fds,	write_fds;
+char	buf[300000],	msg[300000];
+int		id[1024],		max_fd,			server_fd,	client_fd,	new_fd,	readc,	next_id = 0;
+fd_set	all_fds,		read_fds,		write_fds;
 
 void fatal(char *s)
 {
