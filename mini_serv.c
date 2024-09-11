@@ -1,134 +1,94 @@
-#include <errno.h>
+#include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 #include <netdb.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <stdio.h>
-#include <stdlib.h>
 
-typedef struct s_client
+char	buf[1024],	msg[1024];
+int		id[1024],	max_fd,		server_fd,	client_fd,	new_fd,	readc,	next_id = 0;
+fd_set	all_fds,	read_fds,	write_fds;
+
+void fatal(char *s)
 {
-	int		id;
-	char	msg[300000];
-}	t_client;
-
-t_client	clients[5000];
-int			gid = 0,		maxfd = 0,		sockfd;
-fd_set		wrt_set,		rd_set,			curr_set;
-char		sd_bfr[300000],	rcv_bfr[300000];
-
-// Error handling function
-void	err(char *msg)
-{
-	if (msg)
-		write(2, msg, strlen(msg));
-	else
-		write(2, "Fatal error", 11);
-	write(2, "\n", 1);
-	exit(1);
+	write(2, s, strlen(s)); exit(1);
 }
 
-// Broadcast message to all clients except the given one
-void	send_to_all(int except)
+int main(int ac, char **av)
 {
-	wrt_set = curr_set;
-	if (select(maxfd + 1, &rd_set, &wrt_set, 0, 0))
-	{
-		for (int fd = 0; fd <= maxfd; fd++)
-		{
-			if (FD_ISSET(fd, &wrt_set) && fd != except)
-				if (send(fd, sd_bfr, strlen(sd_bfr), 0) == -1)
-					err(NULL);
-		}
-	}
-	FD_ZERO(&wrt_set);
-	bzero(sd_bfr, sizeof(sd_bfr));
-}
+	struct sockaddr_in	addr;
 
-int		main(int ac, char **av)
-{
 	if (ac != 2)
-		err("Wrong number of arguments");
+		fatal("Wrong number of arguments\n");   
+	if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+		fatal("Fatal error\n");
+	max_fd = server_fd;
 
-	socklen_t			len = sizeof(struct sockaddr_in);
-	struct sockaddr_in	servaddr;
+	FD_ZERO(&all_fds);
+	FD_SET(server_fd, &all_fds);
+	bzero(&addr, sizeof(addr));
 
-	// socket create and verification
-	sockfd = socket(AF_INET, SOCK_STREAM, 0);
-	if (sockfd == -1) err(NULL);
-	maxfd = sockfd;
+	addr.sin_family = AF_INET;
+	addr.sin_addr.s_addr = htonl(2130706433); // 127.0.0.1
+	addr.sin_port = htons(atoi(av[1]));
 
-	FD_ZERO(&curr_set);
-	FD_ZERO(&wrt_set);
-	FD_SET(sockfd, &curr_set);
-	bzero(clients, sizeof(clients));
-	bzero(&servaddr, sizeof(servaddr));
-	bzero(rcv_bfr, sizeof(rcv_bfr));
-	bzero(sd_bfr, sizeof(sd_bfr));
-
-	// assign IP, PORT
-	servaddr.sin_family = AF_INET;
-	servaddr.sin_addr.s_addr = htonl(2130706433); // 127.0.0.1
-	servaddr.sin_port = htons(atoi(av[1]));
-
-	// Binding newly created socket to given IP and verification
-	if ((bind(sockfd, (const struct sockaddr *)&servaddr, sizeof(servaddr))) == -1 || listen(sockfd, 100) == -1)
-		err(NULL);
+	if (bind(server_fd, (struct sockaddr *)&addr, sizeof(addr)) < 0)
+		fatal("Fatal error\n");
+	if (listen(server_fd, 10) < 0)
+		fatal("Fatal error\n");
 
 	while (1)
 	{
-		rd_set = wrt_set = curr_set;
-		if (select(maxfd + 1, &rd_set, &wrt_set, 0, 0) == -1) continue;
-
-		for (int fd = 0; fd <= maxfd; fd++)
-		{
-			if (FD_ISSET(fd, &rd_set))
+		read_fds = all_fds;
+		if (select(max_fd + 1, &read_fds, NULL, NULL, NULL) < 0)
+			continue;
+		
+		for (client_fd = 0; client_fd <= max_fd; client_fd++) {
+			if (FD_ISSET(client_fd, &read_fds))
 			{
-				if (fd == sockfd)
+				if (client_fd == server_fd)
 				{
-					// New client connection
-					int connfd = accept(sockfd, (struct sockaddr *)&servaddr, &len);
-					if (connfd == -1) continue;
-					if (connfd > maxfd) maxfd = connfd;
-					clients[connfd].id = gid++;
-					FD_SET(connfd, &curr_set);
-					sprintf(sd_bfr, "server: client %d just arrived\n", clients[connfd].id);
-					send_to_all(connfd);
+					if ((new_fd = accept(server_fd, NULL, NULL)) < 0)
+						continue;
+					if (new_fd > max_fd)
+						max_fd = new_fd;
+					id[new_fd] = next_id++;
+					FD_SET(new_fd, &all_fds);
+					sprintf(buf, "server: client %d just arrived\n", id[new_fd]);
+					client_fd = new_fd;
 				}
 				else
 				{
-					// Message or disconnection from client
-					int ret = recv(fd, &rcv_bfr, sizeof(rcv_bfr), 0);
-					if (ret <= 0)
+					if ((readc = recv(client_fd, msg, 1024, 0)) <= 0)
 					{
-						// Client disconnected
-						sprintf(sd_bfr, "server: client %d just left\n", clients[fd].id);
-						send_to_all(fd);
-						FD_CLR(fd, &curr_set);
-						close(fd);
-						bzero(clients[fd].msg, strlen(clients[fd].msg));
+						sprintf(buf, "server: client %d just left\n", id[client_fd]);
+						FD_CLR(client_fd, &all_fds);
+						close(client_fd);
 					}
 					else
 					{
-						// Handle client message
-						for (int i = 0, j = strlen(clients[fd].msg); i < ret; i++, j++)
+						for (int i = 0, j = 0; i < readc; i++)
 						{
-							clients[fd].msg[j] = rcv_bfr[i];
-							if (clients[fd].msg[j] == '\n')
+							if (msg[i] == '\n')
 							{
-								clients[fd].msg[j] = '\0';
-								sprintf(sd_bfr, "client %d: %s\n", clients[fd].id, clients[fd].msg);
-								send_to_all(fd);
-								bzero(clients[fd].msg, strlen(clients[fd].msg));
-								j = -1;
-							}
+								msg[j] = 0;
+								sprintf(buf, "client %d: %s\n", id[client_fd], msg);
+								j = 0;
+							} 
+							else
+								msg[j++] = msg[i];
 						}
 					}
 				}
+				write_fds = all_fds;
+				for (int fd = 0; fd <= max_fd; fd++)
+					if (FD_ISSET(fd, &write_fds) && fd != client_fd && fd != server_fd)
+						send(fd, buf, strlen(buf), 0);
+				bzero(buf, sizeof(buf));
 				break;
 			}
 		}
 	}
-	return (0);
+	return 0;
 }
