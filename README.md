@@ -1,4 +1,4 @@
-# Exam Rank 06
+# Exam Rank 06 - Nano serv
 
 ```
 Assignment name  : mini_serv
